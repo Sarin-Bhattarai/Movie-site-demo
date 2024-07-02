@@ -31,12 +31,15 @@ export default function App() {
   }
 
   useEffect(() => {
+    const controller = new AbortController(); //controlling too many request api
+
     const fetchMovies = async () => {
       try {
         setIsLoading(true);
         setError("");
         const response = await fetch(
-          `http://www.omdbapi.com/?apikey=${KEY}&s=${query}`
+          `http://www.omdbapi.com/?apikey=${KEY}&s=${query}`,
+          { signal: controller.signal }
         );
         //--handling error
         if (!response.ok)
@@ -47,9 +50,12 @@ export default function App() {
         if (data.Response === "False") throw new Error("Movie not found");
         //--handling error
         setMovies(data.Search);
+        setError("");
       } catch (err) {
-        console.error(err.message);
-        setError(err.message);
+        console.log(err.message);
+        if (err.name !== "AbortError") {
+          setError(err.message);
+        }
       } finally {
         setIsLoading(false);
       }
@@ -61,7 +67,13 @@ export default function App() {
       return;
     }
 
+    handleCloseMovie();
     fetchMovies();
+
+    return function () {
+      //cleanup function
+      controller.abort();
+    };
   }, [query]);
 
   return (
@@ -229,6 +241,23 @@ function MovieDetails({ selectedId, onCloseMovie, onAddWatched, watched }) {
     onCloseMovie();
   }
 
+  useEffect(
+    function () {
+      //function for closing watched movie when pressing escape on keyboard
+      function callback(e) {
+        if (e.code === "Escape") {
+          onCloseMovie();
+        }
+      }
+      document.addEventListener("keydown", callback);
+
+      return function () {
+        document.removeEventListener("keydown", callback);
+      };
+    },
+    [onCloseMovie]
+  );
+
   useEffect(() => {
     const getMovieDetails = async () => {
       setIsLoading(true);
@@ -241,6 +270,19 @@ function MovieDetails({ selectedId, onCloseMovie, onAddWatched, watched }) {
     };
     getMovieDetails();
   }, [selectedId]);
+
+  useEffect(
+    //function to get title on browser acc to title of movie
+    function () {
+      if (!title) return;
+      document.title = `Movie | ${title}`;
+
+      return function () {
+        document.title = "UsePopcorn";
+      };
+    },
+    [title]
+  );
 
   return (
     <div className="details">
